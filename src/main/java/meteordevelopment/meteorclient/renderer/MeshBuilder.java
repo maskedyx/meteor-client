@@ -8,9 +8,9 @@ package meteordevelopment.meteorclient.renderer;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import meteordevelopment.meteorclient.platform.ModPlatform;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.BufferUtils;
 
@@ -20,7 +20,7 @@ import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static org.lwjgl.system.MemoryUtil.*;
 
 public class MeshBuilder {
-    private static final boolean DEBUG = FabricLoader.getInstance().isDevelopmentEnvironment() || Boolean.getBoolean("meteor.render.debug");
+    private static final boolean DEBUG = ModPlatform.isDevelopmentEnvironment() || Boolean.getBoolean("meteor.render.debug");
 
     public double alpha = 1;
 
