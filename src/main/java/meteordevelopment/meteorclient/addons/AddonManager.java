@@ -6,13 +6,12 @@
 package meteordevelopment.meteorclient.addons;
 
 import meteordevelopment.meteorclient.MeteorClient;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
-import net.fabricmc.loader.api.metadata.ModMetadata;
-import net.fabricmc.loader.api.metadata.Person;
+import meteordevelopment.meteorclient.platform.ModPlatform;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 
 public class AddonManager {
     public static final List<MeteorAddon> ADDONS = new ArrayList<>();
@@ -41,52 +40,35 @@ public class AddonManager {
 
                 @Override
                 public String getCommit() {
-                    String commit = MeteorClient.MOD_META.getCustomValue(MeteorClient.MOD_ID + ":commit").getAsString();
-                    return commit.isEmpty() ? null : commit;
+                    return MeteorClient.COMMIT.isEmpty() ? null : MeteorClient.COMMIT;
                 }
             };
 
-            ModMetadata metadata = FabricLoader.getInstance().getModContainer(MeteorClient.MOD_ID).get().getMetadata();
-
-            MeteorClient.ADDON.name = metadata.getName();
-            MeteorClient.ADDON.authors = new String[metadata.getAuthors().size()];
-            if (metadata.containsCustomValue(MeteorClient.MOD_ID + ":color")) {
-                MeteorClient.ADDON.color.parse(metadata.getCustomValue(MeteorClient.MOD_ID + ":color").getAsString());
-            }
-
-            int i = 0;
-            for (Person author : metadata.getAuthors()) {
-                MeteorClient.ADDON.authors[i++] = author.getName();
-            }
-
+            var metadata = ModPlatform.ownMetadata();
+            MeteorClient.ADDON.name = metadata.name();
+            MeteorClient.ADDON.authors = metadata.authors();
+            MeteorClient.ADDON.color.parse(metadata.color());
             ADDONS.add(MeteorClient.ADDON);
         }
 
-        // Addons
-        for (EntrypointContainer<MeteorAddon> entrypoint : FabricLoader.getInstance().getEntrypointContainers("meteor", MeteorAddon.class)) {
-            ModMetadata metadata = entrypoint.getProvider().getMetadata();
-            MeteorAddon addon;
+        for (MeteorAddon addon : ServiceLoader.load(MeteorAddon.class)) {
             try {
-                addon = entrypoint.getEntrypoint();
-            } catch (Throwable throwable) {
-                throw new RuntimeException("Exception during addon init \"%s\".".formatted(metadata.getName()), throwable);
+                populateMetadata(addon);
+                ADDONS.add(addon);
+            } catch (ServiceConfigurationError error) {
+                throw new RuntimeException("Failed to load Meteor addon from service entry.", error);
             }
+        }
+    }
 
-            addon.name = metadata.getName();
+    private static void populateMetadata(MeteorAddon addon) {
+        MeteorAddonMetadata metadata = addon.getClass().getAnnotation(MeteorAddonMetadata.class);
 
-            if (metadata.getAuthors().isEmpty()) throw new RuntimeException("Addon \"%s\" requires at least 1 author to be defined in it's fabric.mod.json. See https://fabricmc.net/wiki/documentation:fabric_mod_json_spec".formatted(addon.name));
-            addon.authors = new String[metadata.getAuthors().size()];
+        addon.name = metadata != null && !metadata.name().isBlank() ? metadata.name() : addon.getClass().getSimpleName();
+        addon.authors = metadata != null ? metadata.authors() : new String[0];
 
-            if (metadata.containsCustomValue(MeteorClient.MOD_ID + ":color")) {
-                addon.color.parse(metadata.getCustomValue(MeteorClient.MOD_ID + ":color").getAsString());
-            }
-
-            int i = 0;
-            for (Person author : metadata.getAuthors()) {
-                addon.authors[i++] = author.getName();
-            }
-
-            ADDONS.add(addon);
+        if (metadata != null && !metadata.color().isBlank()) {
+            addon.color.parse(metadata.color());
         }
     }
 }

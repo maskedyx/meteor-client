@@ -4,7 +4,7 @@
 </p>
 
 <h1 align="center">Meteor</h1>
-<p align="center">A Minecraft Fabric Utility Mod for anarchy servers.</p>
+<p align="center">A Minecraft NeoForge Utility Mod for anarchy servers.</p>
 
 <div align="center">
     <a href="https://discord.gg/bBGQZvd"><img src="https://img.shields.io/discord/689197705683140636?logo=discord" alt="Discord"/></a>
@@ -20,11 +20,28 @@
 ## Usage
 
 ### Building
-- Clone this repository
-- Run `./gradlew build`
+- Clone this repository.
+- Make sure you have network access to the NeoForged and Meteor Maven repositories used by Gradle.
+- Install a JDK that can satisfy the Java 21 toolchain declared in `gradle/libs.versions.toml`.
+- Run `./gradlew build`.
+- Find the built jar in `build/libs/`.
+
+### Testing
+- This repository currently does not contain a dedicated `src/test` suite; the existing automated check is the Gradle build used by CI.
+- Run `./gradlew build` before opening a pull request to verify that the client still compiles and packages correctly.
+- For gameplay or compatibility changes, run `./gradlew runClient` and smoke-test the affected behavior in a NeoForge client instance for the supported Minecraft version.
+
+### Compatibility Checklist
+If you remove or alter compatibility-sensitive files or declarations, double-check the related metadata before merging:
+
+- Keep the Minecraft, NeoForge, and Java versions aligned with `gradle/libs.versions.toml`, `build.gradle.kts`, and `src/main/resources/META-INF/neoforge.mods.toml`.
+- If you add, remove, or rename mixin configuration files, update both `src/main/resources/META-INF/neoforge.mods.toml` and the jar manifest configuration in `build.gradle.kts`.
+- If you change access widening, keep `src/main/resources/META-INF/accesstransformer.cfg` and `src/main/resources/meteor-client.classtweaker` in sync.
+- If you change build metadata placeholders, make sure `src/main/resources/META-INF/neoforge.mods.toml` and `src/main/resources/meteor-client.properties` still receive the expected values from `processResources`.
+- Re-run `./gradlew build` after those changes and do a local smoke test with NeoForge when the change affects runtime behavior.
 
 ### Installation
-Follow the [guide](https://meteorclient.com/faq/installation) on the wiki.
+Install NeoForge for the supported Minecraft version, then place the built jar in your `mods` folder.
 
 ## Contributions
 We will review and help with all reasonable pull requests as long as the guidelines below are met.

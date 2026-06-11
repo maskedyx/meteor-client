@@ -1,7 +1,22 @@
+import org.gradle.jvm.tasks.Jar
+
+buildscript {
+    repositories {
+        maven("https://maven.neoforged.net/releases")
+        mavenCentral()
+        gradlePluginPortal()
+    }
+
+    dependencies {
+        classpath("net.neoforged:moddev-gradle:2.0.141")
+    }
+}
+
 plugins {
-    alias(libs.plugins.fabric.loom)
     id("maven-publish")
 }
+
+apply(plugin = "net.neoforged.moddev")
 
 base {
     archivesName = properties["archives_base_name"] as String
@@ -12,86 +27,57 @@ base {
 }
 
 repositories {
-    maven {
+    maven("https://maven.neoforged.net/releases")
+    maven("https://maven.meteordev.org/releases") {
         name = "meteor-maven"
-        url = uri("https://maven.meteordev.org/releases")
     }
-    maven {
+    maven("https://maven.meteordev.org/snapshots") {
         name = "meteor-maven-snapshots"
-        url = uri("https://maven.meteordev.org/snapshots")
-    }
-    maven {
-        name = "Terraformers"
-        url = uri("https://maven.terraformersmc.com")
-    }
-    maven {
-        name = "ViaVersion"
-        url = uri("https://repo.viaversion.com")
     }
     mavenCentral()
-
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = "modrinth"
-                url = uri("https://api.modrinth.com/maven")
-            }
-        }
-        filter {
-            includeGroup("maven.modrinth")
-        }
-    }
 }
 
-val modInclude: Configuration by configurations.creating
-val jij: Configuration by configurations.creating
+val embedded: Configuration by configurations.creating
 
 configurations {
-    // include mods
     implementation.configure {
-        extendsFrom(modInclude)
-    }
-    include.configure {
-        extendsFrom(modInclude)
-    }
-
-    // include libraries (jar-in-jar)
-    implementation.configure {
-        extendsFrom(jij)
-    }
-    include.configure {
-        extendsFrom(jij)
+        extendsFrom(embedded)
     }
 }
 
 dependencies {
-    // Fabric
-    minecraft(libs.minecraft)
-    implementation(libs.fabric.loader)
-
-    val fapiVersion = libs.versions.fabric.api.get()
-    modInclude(fabricApi.module("fabric-api-base", fapiVersion))
-    modInclude(fabricApi.module("fabric-resource-loader-v1", fapiVersion))
-
-    // Compat fixes
-    compileOnly(fabricApi.module("fabric-renderer-indigo", fapiVersion))
-    compileOnly(libs.sodium) { isTransitive = false }
-    compileOnly(libs.lithium) { isTransitive = false }
-    compileOnly(libs.iris) { isTransitive = false }
-    compileOnly(libs.viafabricplus) { isTransitive = false }
-    compileOnly(libs.viafabricplus.api) { isTransitive = false }
-
     compileOnly(libs.baritone)
-    compileOnly(libs.modmenu)
 
-    // Libraries (JAR-in-JAR)
-    jij(libs.orbit)
-    jij(libs.starscript)
-    jij(libs.discord.ipc)
-    jij(libs.reflections)
-    jij(libs.netty.handler.proxy) { isTransitive = false }
-    jij(libs.netty.codec.socks) { isTransitive = false }
-    jij(libs.waybackauthlib)
+    embedded(libs.orbit)
+    embedded(libs.starscript)
+    embedded(libs.discord.ipc)
+    embedded(libs.reflections)
+    embedded(libs.netty.handler.proxy) { isTransitive = false }
+    embedded(libs.netty.codec.socks) { isTransitive = false }
+    embedded(libs.waybackauthlib)
+}
+
+neoForge {
+    version = libs.versions.neoforge.get()
+    accessTransformers.from(file("src/main/resources/META-INF/accesstransformer.cfg"))
+    validateAccessTransformers = true
+
+    runs {
+        configureEach {
+            gameDirectory = file("run/$name")
+            systemProperty("neoforge.enabledGameTestNamespaces", properties["archives_base_name"] as String)
+        }
+
+        create("client") {
+            client()
+        }
+    }
+
+    mods {
+        create(properties["archives_base_name"] as String) {
+            sourceSet(sourceSets.main.get())
+        }
+    }
 }
 
 sourceSets {
@@ -113,41 +99,6 @@ java {
     }
 }
 
-// Handle transitive dependencies for jar-in-jar
-// Based on implementation from BaseProject by florianreuth/EnZaXD
-// Source: https://github.com/florianreuth/BaseProject/blob/main/src/main/kotlin/de/florianreuth/baseproject/Fabric.kt
-// Licensed under Apache License 2.0
-val jijExcluded = setOf("org.slf4j", "jsr305")
-listOf("api", "implementation", "include").forEach { configName ->
-    configurations.named(configName).configure {
-        defaultDependencies {
-            configurations.getByName("jij").incoming.resolutionResult.allComponents
-                .mapNotNull { it.id as? ModuleComponentIdentifier }
-                .forEach { id ->
-                    val notation = "${id.group}:${id.module}:${id.version}"
-                    if (jijExcluded.none { notation.contains(it) }) {
-                        add(project.dependencies.create(notation) {
-                            isTransitive = false
-                        })
-                    }
-                }
-        }
-    }
-}
-
-loom {
-    accessWidenerPath = file("src/main/resources/meteor-client.classtweaker")
-}
-
-fun toMinecraftCompat(version: String): String {
-    val match = Regex("""^(\d{2})\.([1-9]\d*)(?:\.([1-9]\d*))?$""")
-        .matchEntire(version)
-        ?: error("Invalid Minecraft version format: $version. Expected YY.D or YY.D.H")
-
-    val (year, drop, _) = match.destructured
-    return "~$year.$drop"
-}
-
 tasks {
     processResources {
         val buildNumber = providers.gradleProperty("build_number").getOrElse("")
@@ -155,24 +106,39 @@ tasks {
 
         val propertyMap = mapOf(
             "version" to project.version,
+            "mod_id" to properties["archives_base_name"],
+            "mod_name" to "Meteor Client",
+            "mod_description" to "Based utility mod.",
+            "mod_authors" to "MineGame159, squidoodly, seasnail",
+            "homepage" to "https://meteorclient.com",
+            "issue_tracker" to "https://github.com/MeteorDevelopment/meteor-client/issues",
+            "license" to "GPL-3.0",
             "build_number" to buildNumber,
             "commit" to commit,
+            "color" to "145,61,226",
             "jdk_version" to libs.versions.jdk.get(),
-            "minecraft_version" to toMinecraftCompat(libs.versions.minecraft.get()),
-            "loader_version" to libs.versions.fabric.loader.get()
+            "minecraft_version" to libs.versions.minecraft.get(),
+            "loader_version" to libs.versions.neoforge.get()
         )
 
         inputs.properties(propertyMap)
-        filesMatching("fabric.mod.json") {
+        filesMatching(listOf("META-INF/neoforge.mods.toml", "meteor-client.properties")) {
             expand(propertyMap)
         }
     }
 
-    // Compile launcher with Java 8 for backwards compatibility
     named<JavaCompile>("compileLauncherJava").configure {
         sourceCompatibility = JavaVersion.VERSION_1_8.toString()
         targetCompatibility = JavaVersion.VERSION_1_8.toString()
         options.compilerArgs.add("-Xlint:-options")
+    }
+
+    withType<JavaCompile>().configureEach {
+        options.compilerArgs.addAll(listOf("-Xlint:deprecation", "-Xlint:unchecked"))
+    }
+
+    withType<Jar>().configureEach {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
 
     jar {
@@ -182,21 +148,24 @@ tasks {
             rename { "${it}_${inputs.properties["archivesName"]}" }
         }
 
-        // Include launcher classes
         from(sourceSets["launcher"].output)
+        from({
+            embedded
+                .filter { it.exists() }
+                .map { if (it.isDirectory) it else zipTree(it) }
+        }) {
+            exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+        }
 
         manifest {
-            attributes["Main-Class"] = "meteordevelopment.meteorclient.Main"
-        }
-    }
-
-    withType<JavaCompile>().configureEach {
-        options.compilerArgs.addAll(
-            listOf(
-                "-Xlint:deprecation",
-                "-Xlint:unchecked"
+            attributes(
+                "Main-Class" to "meteordevelopment.meteorclient.Main",
+                "MixinConfigs" to listOf(
+                    "meteor-client.mixins.json",
+                    "meteor-client-baritone.mixins.json"
+                ).joinToString(",")
             )
-        )
+        }
     }
 
     javadoc {

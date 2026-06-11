@@ -5,7 +5,7 @@
 
 package meteordevelopment.meteorclient;
 
-import net.fabricmc.loader.api.FabricLoader;
+import meteordevelopment.meteorclient.platform.ModPlatform;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -19,22 +19,14 @@ public class MixinPlugin implements IMixinConfigPlugin {
     private static boolean loaded;
 
     private static boolean isOriginsPresent;
-    private static boolean isIndigoPresent;
-    public static boolean isSodiumPresent;
-    private static boolean isLithiumPresent;
-    public static boolean isIrisPresent;
-    private static boolean isVFPPresent;
+    private static boolean isBaritonePresent;
 
     @Override
     public void onLoad(String mixinPackage) {
         if (loaded) return;
 
-        isIndigoPresent = FabricLoader.getInstance().isModLoaded("fabric-renderer-indigo");
-        isOriginsPresent = FabricLoader.getInstance().isModLoaded("origins");
-        isSodiumPresent = FabricLoader.getInstance().isModLoaded("sodium");
-        isLithiumPresent = FabricLoader.getInstance().isModLoaded("lithium");
-        isIrisPresent = FabricLoader.getInstance().isModLoaded("iris");
-        isVFPPresent = FabricLoader.getInstance().isModLoaded("viafabricplus");
+        isOriginsPresent = ModPlatform.isModLoaded("origins");
+        isBaritonePresent = ModPlatform.isModLoaded("baritone");
 
         loaded = true;
     }
@@ -50,16 +42,9 @@ public class MixinPlugin implements IMixinConfigPlugin {
             throw new RuntimeException("Mixin " + mixinClassName + " is not in the mixin package");
         } else if (mixinClassName.endsWith("PlayerEntityRendererMixin")) {
             return !isOriginsPresent;
-        } else if (mixinClassName.startsWith(mixinPackage + ".sodium")) {
-            return isSodiumPresent;
-        } else if (mixinClassName.startsWith(mixinPackage + ".indigo")) {
-            return isIndigoPresent;
-        } else if (mixinClassName.startsWith(mixinPackage + ".lithium")) {
-            return isLithiumPresent;
-        } else if (mixinClassName.startsWith(mixinPackage + ".viafabricplus")) {
-            return isVFPPresent;
+        } else if (mixinClassName.startsWith(mixinPackage + ".baritone")) {
+            return isBaritonePresent;
         }
-
 
         return true;
     }

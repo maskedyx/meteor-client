@@ -22,6 +22,8 @@ import meteordevelopment.meteorclient.systems.hud.screens.HudElementScreen;
 import meteordevelopment.meteorclient.systems.modules.Categories;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.misc.DiscordPresence;
+import meteordevelopment.meteorclient.platform.ModPlatform;
+import meteordevelopment.meteorclient.platform.ModRuntimeMetadata;
 import meteordevelopment.meteorclient.utils.PostInit;
 import meteordevelopment.meteorclient.utils.PreInit;
 import meteordevelopment.meteorclient.utils.ReflectInit;
@@ -34,9 +36,9 @@ import meteordevelopment.orbit.EventBus;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import meteordevelopment.orbit.IEventBus;
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.metadata.ModMetadata;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.resources.Identifier;
@@ -47,48 +49,54 @@ import org.spongepowered.asm.mixin.MixinEnvironment;
 import java.io.File;
 import java.lang.invoke.MethodHandles;
 
-public class MeteorClient implements ClientModInitializer {
+@Mod(MeteorClient.MOD_ID)
+public class MeteorClient {
     public static final String MOD_ID = "meteor-client";
-    public static final ModMetadata MOD_META;
+    private static final ModRuntimeMetadata MOD_METADATA = ModPlatform.ownMetadata();
     public static final String NAME;
     public static final Version VERSION;
     public static final String BUILD_NUMBER;
+    public static final String COMMIT;
 
     public static MeteorClient INSTANCE;
     public static MeteorAddon ADDON;
 
     public static Minecraft mc;
     public static final IEventBus EVENT_BUS = new EventBus();
-    public static final File FOLDER = FabricLoader.getInstance().getGameDir().resolve(MOD_ID).toFile();
+    public static final File FOLDER = ModPlatform.getGameDir().resolve(MOD_ID).toFile();
     public static final Logger LOG;
+    private static boolean initialized;
 
     static {
-        MOD_META = FabricLoader.getInstance().getModContainer(MOD_ID).orElseThrow().getMetadata();
-
-        NAME = MOD_META.getName();
+        NAME = MOD_METADATA.name();
         LOG = LoggerFactory.getLogger(NAME);
 
-        String versionString = MOD_META.getVersion().getFriendlyString();
+        String versionString = MOD_METADATA.version();
         if (versionString.contains("-")) versionString = versionString.split("-")[0];
 
-        // When building and running through IntelliJ and not Gradle it doesn't replace the version so just use a dummy
         if (versionString.equals("${version}")) versionString = "0.0.0";
 
         VERSION = new Version(versionString);
-        BUILD_NUMBER = MOD_META.getCustomValue(MeteorClient.MOD_ID + ":build_number").getAsString();
+        BUILD_NUMBER = MOD_METADATA.buildNumber();
+        COMMIT = MOD_METADATA.commit();
     }
 
-    @Override
-    public void onInitializeClient() {
-        if (INSTANCE == null) {
-            INSTANCE = this;
-            return;
-        }
+    public MeteorClient(ModContainer modContainer, net.neoforged.bus.api.IEventBus modEventBus) {
+        INSTANCE = this;
+        modEventBus.addListener(this::onClientSetup);
+    }
 
+    private void onClientSetup(FMLClientSetupEvent event) {
+        if (initialized) return;
+        initialized = true;
+        event.enqueueWork(this::initializeClient);
+    }
+
+    private void initializeClient() {
         // Global minecraft client accessor
         mc = Minecraft.getInstance();
 
-        if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+        if (ModPlatform.isDevelopmentEnvironment()) {
             LOG.info("Force loading mixins");
             MixinEnvironment.getCurrentEnvironment().audit();
         }
