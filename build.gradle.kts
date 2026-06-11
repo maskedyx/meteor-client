@@ -1,9 +1,22 @@
 import org.gradle.jvm.tasks.Jar
 
+buildscript {
+    repositories {
+        maven("https://maven.neoforged.net/releases")
+        mavenCentral()
+        gradlePluginPortal()
+    }
+
+    dependencies {
+        classpath("net.neoforged:moddev-gradle:2.0.141")
+    }
+}
+
 plugins {
-    id("net.neoforged.gradle.userdev") version "7.0.73"
     id("maven-publish")
 }
+
+apply(plugin = "net.neoforged.moddev")
 
 base {
     archivesName = properties["archives_base_name"] as String
@@ -33,8 +46,6 @@ configurations {
 }
 
 dependencies {
-    implementation(libs.neoforge)
-
     compileOnly(libs.baritone)
 
     embedded(libs.orbit)
@@ -44,6 +55,29 @@ dependencies {
     embedded(libs.netty.handler.proxy) { isTransitive = false }
     embedded(libs.netty.codec.socks) { isTransitive = false }
     embedded(libs.waybackauthlib)
+}
+
+neoForge {
+    version = libs.versions.neoforge.get()
+    accessTransformers.from(file("src/main/resources/META-INF/accesstransformer.cfg"))
+    validateAccessTransformers = true
+
+    runs {
+        configureEach {
+            gameDirectory = file("run/$name")
+            systemProperty("neoforge.enabledGameTestNamespaces", properties["archives_base_name"] as String)
+        }
+
+        create("client") {
+            client()
+        }
+    }
+
+    mods {
+        create(properties["archives_base_name"] as String) {
+            sourceSet(sourceSets.main.get())
+        }
+    }
 }
 
 sourceSets {
@@ -88,7 +122,7 @@ tasks {
         )
 
         inputs.properties(propertyMap)
-        filesMatching(listOf("META-INF/mods.toml", "meteor-client.properties")) {
+        filesMatching(listOf("META-INF/neoforge.mods.toml", "meteor-client.properties")) {
             expand(propertyMap)
         }
     }
